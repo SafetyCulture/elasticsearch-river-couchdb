@@ -352,6 +352,7 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
         } else {
             logger.warn("ignoring unknown change {}", s);
         }
+
         return seq;
     }
 
@@ -382,6 +383,7 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
     private class Indexer implements Runnable {
         @Override
         public void run() {
+            int highestSeq = 0;
             while (true) {
                 if (closed) {
                     return;
@@ -398,7 +400,9 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
 
                 Object lastSeq = null;
                 Object lineSeq = processLine(s);
+
                 if (lineSeq != null) {
+                    highestSeq = checkSeqOrder(((Integer)lineSeq).intValue(), highestSeq);
                     lastSeq = lineSeq;
                 }
 
@@ -407,6 +411,7 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                     while ((s = stream.poll(bulkTimeout.millis(), TimeUnit.MILLISECONDS)) != null) {
                         lineSeq = processLine(s);
                         if (lineSeq != null) {
+                            highestSeq = checkSeqOrder(((Integer)lineSeq).intValue(), highestSeq);
                             lastSeq = lineSeq;
                         }
                     }
@@ -452,6 +457,17 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                     }
                 }
             }
+        }
+
+        private int checkSeqOrder(int newSeq, int highestSeq ){
+          logger.debug("Processing sequence {}, highest was {}", newSeq, highestSeq);
+          if(newSeq <= highestSeq){
+            logger.error("Got an older sequence {}, highest was {}", newSeq, highestSeq);
+            return highestSeq;
+          }else{
+            return newSeq;
+          }
+
         }
     }
 

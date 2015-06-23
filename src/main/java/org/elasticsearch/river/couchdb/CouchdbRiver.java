@@ -407,12 +407,19 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                 }
 
                 // spin a bit to see if we can get some more changes
+                int count = 1;
                 try {
                     while ((s = stream.poll(bulkTimeout.millis(), TimeUnit.MILLISECONDS)) != null) {
+                        logger.debug("Additional item {}, (stream size = {})", count, stream.size());
                         lineSeq = processLine(s);
                         if (lineSeq != null) {
                             highestSeq = checkSeqOrder(((Integer)lineSeq).intValue(), highestSeq);
                             lastSeq = lineSeq;
+                        }
+                        count++;
+                        if (count >= throttleSize) {
+                            logger.debug("Taking a breath after {}", count);
+                            break;
                         }
                     }
                 } catch (InterruptedException e) {
@@ -443,8 +450,8 @@ public class CouchdbRiver extends AbstractRiverComponent implements River {
                         } else {
                             lastSeqAsString = lastSeq.toString();
                         }
-                        if (logger.isTraceEnabled()) {
-                            logger.trace("processing [_seq  ]: [{}]/[{}]/[{}], last_seq [{}]", riverIndexName, riverName.name(), "_seq", lastSeqAsString);
+                        if (logger.isDebugEnabled()) {
+                            logger.debug("processing [_seq  ]: [{}]/[{}]/[{}], last_seq [{}]", riverIndexName, riverName.name(), "_seq", lastSeqAsString);
                         }
                         if (closed) {
                             logger.warn("river was closing while trying to update sequence [{}/{}/{}]. Operation skipped.", riverIndexName, riverName.name(), "_seq");
